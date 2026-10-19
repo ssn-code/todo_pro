@@ -1,349 +1,65 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/todo_task.dart';
+import '../providers/task_providers.dart';
 import 'settings_screen.dart';
 
-class TaskScreen extends StatefulWidget {
-  const TaskScreen({
-    super.key,
-    required this.themeMode,
-    required this.onThemeChanged,
-  });
-
+class TaskScreen extends ConsumerStatefulWidget {
+  const TaskScreen({super.key, required this.themeMode, required this.onThemeChanged});
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeChanged;
-
-  @override
-  State<TaskScreen> createState() => _TaskScreenState();
+  @override ConsumerState<TaskScreen> createState() => _TaskScreenState();
 }
 
-class _TaskScreenState extends State<TaskScreen> {
-  final List<TodoTask> _tasks = [];
-  int _nextId = 0;
-
-  Future<void> _openSettings() => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => SettingsScreen(
-        themeMode: widget.themeMode,
-        onThemeChanged: widget.onThemeChanged,
-      ),
-    ),
-  );
-
-  Future<void> _addTask() async {
-    final task = await showDialog<TodoTask>(
-      context: context,
-      builder: (_) => AddTaskDialog(id: _nextId),
+class _TaskScreenState extends ConsumerState<TaskScreen> {
+  int section = 0;
+  Future<void> edit([TodoTask? task]) async {
+    final result = await showDialog<TodoTask>(context: context, builder: (_) => TaskEditor(task: task));
+    if (result != null) await ref.read(taskListProvider.notifier).save(result);
+  }
+  Future<void> settings() => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => SettingsScreen(themeMode: widget.themeMode, onThemeChanged: widget.onThemeChanged)));
+  void select(int value) { if (value == 2) { settings(); } else { setState(() => section = value); } }
+  @override Widget build(BuildContext context) {
+    final async = ref.watch(taskListProvider);
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    final body = async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(child: Text('Could not load tasks\n$error', textAlign: TextAlign.center)),
+      data: (tasks) => TaskContent(tasks: tasks, upcoming: section == 1, onEdit: edit, onToggle: (task, value) => ref.read(taskListProvider.notifier).toggle(task, value), onDelete: (task) => ref.read(taskListProvider.notifier).remove(task)),
     );
-    if (task == null || !mounted) return;
-    setState(() {
-      _tasks.add(task);
-      _nextId++;
-    });
-  }
-
-  void _toggleTask(TodoTask task, bool isComplete) {
-    setState(() {
-      final index = _tasks.indexWhere((item) => item.id == task.id);
-      _tasks[index] = task.copyWith(isComplete: isComplete);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final now = DateTime.now();
-    final completedCount = _tasks.where((task) => task.isComplete).length;
-
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 64,
-        titleSpacing: 24,
-        title: Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: colors.primary, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              'todo pro',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: _openSettings,
-            icon: const Icon(Icons.tune),
-          ),
-          const SizedBox(width: 12),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: colors.outlineVariant),
-        ),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isMobile = constraints.maxWidth < 600;
-          final horizontalPadding = isMobile ? 22.0 : 48.0;
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 820),
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isMobile ? 34 : 52,
-                  horizontalPadding,
-                  40,
-                ),
-                children: [
-                  Text(
-                    'Today',
-                    style: Theme.of(context).textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _formatDate(now),
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: colors.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 30),
-                  Row(
-                    children: [
-                      Text(
-                        'Tasks',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _tasks.isEmpty
-                            ? ''
-                            : '$completedCount/${_tasks.length}',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: _addTask,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add task'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_tasks.isEmpty)
-                    _EmptyTasks(onAddTask: _addTask)
-                  else
-                    ..._tasks.map(
-                      (task) => _TaskRow(
-                        task: task,
-                        onChanged: (value) => _toggleTask(task, value ?? false),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    const weekdays = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
-  }
-}
-
-class _EmptyTasks extends StatelessWidget {
-  const _EmptyTasks({required this.onAddTask});
-
-  final VoidCallback onAddTask;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        children: [
-          Icon(Icons.task_alt, size: 28, color: colors.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text(
-            'Nothing on your list yet',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Add a task to give today some direction.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          TextButton.icon(
-            onPressed: onAddTask,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add your first task'),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Row(children: [Icon(Icons.check_circle_outline, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10), const Text('todo pro')]), actions: [IconButton(tooltip: 'Settings', onPressed: settings, icon: const Icon(Icons.tune))]),
+      body: wide ? Row(children: [NavigationRail(selectedIndex: section, onDestinationSelected: select, labelType: NavigationRailLabelType.all, destinations: const [NavigationRailDestination(icon: Icon(Icons.today_outlined), label: Text('Today')), NavigationRailDestination(icon: Icon(Icons.event_outlined), label: Text('Upcoming')), NavigationRailDestination(icon: Icon(Icons.settings_outlined), label: Text('Settings'))]), Expanded(child: body)]) : body,
+      floatingActionButton: section < 2 ? FloatingActionButton.extended(onPressed: edit, icon: const Icon(Icons.add), label: const Text('Add task')) : null,
+      bottomNavigationBar: wide ? null : NavigationBar(selectedIndex: section, onDestinationSelected: select, destinations: const [NavigationDestination(icon: Icon(Icons.today_outlined), label: 'Today'), NavigationDestination(icon: Icon(Icons.event_outlined), label: 'Upcoming'), NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings')]),
     );
   }
 }
 
-class _TaskRow extends StatelessWidget {
-  const _TaskRow({required this.task, required this.onChanged});
-
-  final TodoTask task;
-  final ValueChanged<bool?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 64),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: colors.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Checkbox(value: task.isComplete, onChanged: onChanged),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              task.title,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: task.isComplete ? colors.onSurfaceVariant : null,
-                decoration: task.isComplete ? TextDecoration.lineThrough : null,
-              ),
-            ),
-          ),
-          if (task.dueTime != null) ...[
-            const SizedBox(width: 12),
-            Text(
-              task.dueTime!.format(context),
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: colors.onSurfaceVariant),
-            ),
-          ],
-        ],
-      ),
-    );
+class TaskContent extends StatelessWidget {
+  const TaskContent({super.key, required this.tasks, required this.upcoming, required this.onEdit, required this.onToggle, required this.onDelete});
+  final List<TodoTask> tasks; final bool upcoming; final Future<void> Function([TodoTask?]) onEdit; final void Function(TodoTask, bool) onToggle; final void Function(TodoTask) onDelete;
+  @override Widget build(BuildContext context) {
+    final visible = upcoming ? tasks.where((task) => task.dueDate != null).toList() : tasks;
+    final now = DateTime.now();
+    return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 860), child: ListView(padding: const EdgeInsets.fromLTRB(24, 38, 24, 100), children: [Text(upcoming ? 'Upcoming' : 'Today', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(upcoming ? 'Tasks with a scheduled date' : '${now.day}/${now.month}/${now.year}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)), const SizedBox(height: 30), if (visible.isEmpty) EmptyState(upcoming: upcoming) else ...visible.map((task) => TaskRow(task: task, onEdit: () => onEdit(task), onToggle: (value) => onToggle(task, value), onDelete: () => onDelete(task))) ])));
   }
 }
 
-class AddTaskDialog extends StatefulWidget {
-  const AddTaskDialog({super.key, required this.id});
+class EmptyState extends StatelessWidget { const EmptyState({super.key, required this.upcoming}); final bool upcoming; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 70), child: Column(children: [Icon(upcoming ? Icons.event_available : Icons.task_alt, size: 32, color: Theme.of(context).colorScheme.onSurfaceVariant), const SizedBox(height: 14), Text(upcoming ? 'No upcoming tasks' : 'Nothing on your list yet', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 6), Text(upcoming ? 'Schedule a date to see tasks here.' : 'Add a task to give today some direction.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))])); }
 
-  final int id;
-
-  @override
-  State<AddTaskDialog> createState() => _AddTaskDialogState();
+class TaskRow extends StatelessWidget {
+  const TaskRow({super.key, required this.task, required this.onEdit, required this.onToggle, required this.onDelete});
+  final TodoTask task; final VoidCallback onEdit; final ValueChanged<bool> onToggle; final VoidCallback onDelete;
+  @override Widget build(BuildContext context) { final colors = Theme.of(context).colorScheme; return InkWell(onTap: onEdit, child: Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: colors.outlineVariant))), padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [Checkbox(value: task.isCompleted, onChanged: (value) => onToggle(value ?? false)), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.title, style: TextStyle(decoration: task.isCompleted ? TextDecoration.lineThrough : null, color: task.isCompleted ? colors.onSurfaceVariant : null)), if (task.description?.isNotEmpty == true) Text(task.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant))])), if (task.dueDate != null) Text('${task.dueDate!.day}/${task.dueDate!.month}', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)), IconButton(tooltip: 'Delete', onPressed: () async { final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete task?'), content: const Text('This task will be permanently removed.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete'))])); if (confirmed == true) onDelete(); }, icon: const Icon(Icons.delete_outline, size: 20))]))); }
 }
 
-class _AddTaskDialogState extends State<AddTaskDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  TimeOfDay? _dueTime;
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _selectDueTime() async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: _dueTime ?? TimeOfDay.now(),
-    );
-    if (selected != null) setState(() => _dueTime = selected);
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.of(context).pop(
-      TodoTask(
-        id: widget.id,
-        title: _titleController.text.trim(),
-        dueTime: _dueTime,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New task'),
-      content: Form(
-        key: _formKey,
-        child: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: _titleController,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Task name',
-                  hintText: 'What needs to get done?',
-                ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter a task name'
-                    : null,
-                onFieldSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: _selectDueTime,
-                icon: const Icon(Icons.schedule, size: 18),
-                label: Text(
-                  _dueTime == null
-                      ? 'Add due time'
-                      : 'Due ${_dueTime!.format(context)}',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('Add task')),
-      ],
-    );
-  }
+class TaskEditor extends StatefulWidget { const TaskEditor({super.key, this.task}); final TodoTask? task; @override State<TaskEditor> createState() => _TaskEditorState(); }
+class _TaskEditorState extends State<TaskEditor> {
+  final formKey = GlobalKey<FormState>(); late final TextEditingController title; late final TextEditingController description; late TaskPriority priority; DateTime? due;
+  @override void initState() { super.initState(); title = TextEditingController(text: widget.task?.title); description = TextEditingController(text: widget.task?.description); priority = widget.task?.priority ?? TaskPriority.medium; due = widget.task?.dueDate; }
+  @override void dispose() { title.dispose(); description.dispose(); super.dispose(); }
+  Future<void> pickDate() async { final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime(2100), initialDate: due ?? DateTime.now()); if (date != null) setState(() => due = date); }
+  void save() { if (!formKey.currentState!.validate()) return; final now = DateTime.now(); Navigator.pop(context, TodoTask(id: widget.task?.id, title: title.text.trim(), description: description.text.trim().isEmpty ? null : description.text.trim(), priority: priority, dueDate: due, isCompleted: widget.task?.isCompleted ?? false, createdAt: widget.task?.createdAt ?? now, updatedAt: now, completedAt: widget.task?.completedAt)); }
+  @override Widget build(BuildContext context) => AlertDialog(title: Text(widget.task == null ? 'New task' : 'Edit task'), content: Form(key: formKey, child: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextFormField(controller: title, autofocus: true, decoration: const InputDecoration(labelText: 'Task name'), validator: (value) => value == null || value.trim().isEmpty ? 'Enter a task name' : null), const SizedBox(height: 12), TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'Description (optional)')), const SizedBox(height: 12), DropdownButtonFormField<TaskPriority>(initialValue: priority, decoration: const InputDecoration(labelText: 'Priority'), items: TaskPriority.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(), onChanged: (value) => setState(() => priority = value!)), const SizedBox(height: 8), Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: pickDate, icon: const Icon(Icons.event_outlined), label: Text(due == null ? 'Add due date' : 'Due ${due!.day}/${due!.month}/${due!.year}')))]))), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: save, child: Text(widget.task == null ? 'Add task' : 'Save'))]);
 }

@@ -54,12 +54,62 @@ class TaskRow extends StatelessWidget {
   @override Widget build(BuildContext context) { final colors = Theme.of(context).colorScheme; return InkWell(onTap: onEdit, child: Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: colors.outlineVariant))), padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [Checkbox(value: task.isCompleted, onChanged: (value) => onToggle(value ?? false)), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.title, style: TextStyle(decoration: task.isCompleted ? TextDecoration.lineThrough : null, color: task.isCompleted ? colors.onSurfaceVariant : null)), if (task.description?.isNotEmpty == true) Text(task.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant))])), if (task.dueDate != null) Text('${task.dueDate!.day}/${task.dueDate!.month}', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)), IconButton(tooltip: 'Delete', onPressed: () async { final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete task?'), content: const Text('This task will be permanently removed.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete'))])); if (confirmed == true) onDelete(); }, icon: const Icon(Icons.delete_outline, size: 20))]))); }
 }
 
-class TaskEditor extends StatefulWidget { const TaskEditor({super.key, this.task}); final TodoTask? task; @override State<TaskEditor> createState() => _TaskEditorState(); }
+class TaskEditor extends StatefulWidget {
+  const TaskEditor({super.key, this.task});
+  final TodoTask? task;
+  @override State<TaskEditor> createState() => _TaskEditorState();
+}
+
 class _TaskEditorState extends State<TaskEditor> {
-  final formKey = GlobalKey<FormState>(); late final TextEditingController title; late final TextEditingController description; late TaskPriority priority; DateTime? due;
-  @override void initState() { super.initState(); title = TextEditingController(text: widget.task?.title); description = TextEditingController(text: widget.task?.description); priority = widget.task?.priority ?? TaskPriority.medium; due = widget.task?.dueDate; }
-  @override void dispose() { title.dispose(); description.dispose(); super.dispose(); }
-  Future<void> pickDate() async { final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime(2100), initialDate: due ?? DateTime.now()); if (date != null) setState(() => due = date); }
-  void save() { if (!formKey.currentState!.validate()) return; final now = DateTime.now(); Navigator.pop(context, TodoTask(id: widget.task?.id, title: title.text.trim(), description: description.text.trim().isEmpty ? null : description.text.trim(), priority: priority, dueDate: due, isCompleted: widget.task?.isCompleted ?? false, createdAt: widget.task?.createdAt ?? now, updatedAt: now, completedAt: widget.task?.completedAt)); }
-  @override Widget build(BuildContext context) => AlertDialog(title: Text(widget.task == null ? 'New task' : 'Edit task'), content: Form(key: formKey, child: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextFormField(controller: title, autofocus: true, decoration: const InputDecoration(labelText: 'Task name'), validator: (value) => value == null || value.trim().isEmpty ? 'Enter a task name' : null), const SizedBox(height: 12), TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'Description (optional)')), const SizedBox(height: 12), DropdownButtonFormField<TaskPriority>(initialValue: priority, decoration: const InputDecoration(labelText: 'Priority'), items: TaskPriority.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(), onChanged: (value) => setState(() => priority = value!)), const SizedBox(height: 8), Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: pickDate, icon: const Icon(Icons.event_outlined), label: Text(due == null ? 'Add due date' : 'Due ${due!.day}/${due!.month}/${due!.year}')))]))), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: save, child: Text(widget.task == null ? 'Add task' : 'Save'))]);
+  final formKey = GlobalKey<FormState>();
+  late final TextEditingController title;
+  late final TextEditingController description;
+  late TaskPriority priority;
+  DateTime? due;
+
+  @override
+  void initState() {
+    super.initState();
+    title = TextEditingController(text: widget.task?.title);
+    description = TextEditingController(text: widget.task?.description);
+    priority = widget.task?.priority ?? TaskPriority.medium;
+    due = widget.task?.dueDate;
+  }
+
+  @override
+  void dispose() { title.dispose(); description.dispose(); super.dispose(); }
+  Future<void> pickDate() async {
+    final date = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime(2100), initialDate: due ?? DateTime.now());
+    if (date != null) setState(() => due = date);
+  }
+  void save() {
+    if (!formKey.currentState!.validate()) return;
+    final now = DateTime.now();
+    Navigator.pop(context, TodoTask(id: widget.task?.id, title: title.text.trim(), description: description.text.trim().isEmpty ? null : description.text.trim(), priority: priority, dueDate: due, isCompleted: widget.task?.isCompleted ?? false, createdAt: widget.task?.createdAt ?? now, updatedAt: now, completedAt: widget.task?.completedAt));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.task == null ? 'New task' : 'Edit task'),
+      content: Form(
+        key: formKey,
+        child: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextFormField(controller: title, autofocus: true, decoration: const InputDecoration(labelText: 'Task name'), validator: (value) => value == null || value.trim().isEmpty ? 'Enter a task name' : null),
+              const SizedBox(height: 12),
+              TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'Description (optional)')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<TaskPriority>(initialValue: priority, decoration: const InputDecoration(labelText: 'Priority'), items: TaskPriority.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(), onChanged: (value) => setState(() => priority = value!)),
+              const SizedBox(height: 8),
+              Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: pickDate, icon: const Icon(Icons.event_outlined), label: Text(due == null ? 'Add due date' : 'Due ${due!.day}/${due!.month}/${due!.year}'))),
+            ]),
+          ),
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: save, child: Text(widget.task == null ? 'Add task' : 'Save'))],
+    );
+  }
 }

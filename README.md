@@ -1,17 +1,56 @@
-# todo_pro
+# Todo Pro
 
-A new Flutter project.
+Todo Pro is a native Flutter productivity app for Windows and Android. It provides a calm Material 3 interface for managing personal tasks locally, without an account or network connection.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- Today and Upcoming task views
+- Create, edit, complete, reopen, and delete tasks
+- Optional descriptions, due dates, and Low/Medium/High/Urgent priorities
+- SQLite persistence through `sqflite` and `sqflite_common_ffi`
+- Light, Dark, and System theme modes persisted with Shared Preferences
+- Responsive desktop navigation rail and mobile navigation bar
+- Riverpod state management with loading and error states
+- Accessible empty states and confirmation before deletion
 
-A few resources to get you started if this is your first Flutter project:
+## Requirements
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Flutter stable (Dart 3.13 or newer)
+- Windows desktop tooling for Windows builds
+- Android Studio and an Android SDK for Android builds
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+On Windows, Flutter desktop plugin builds may require Windows Developer Mode for symlink support. Enable it from **Settings → System → For developers**.
+
+## Run locally
+
+```powershell
+flutter pub get
+flutter run -d windows
+```
+
+For Android, connect a device or start an emulator and run:
+
+```powershell
+flutter run -d android
+```
+
+## Verify
+
+```powershell
+flutter analyze
+flutter test
+```
+
+The local database is created automatically on first launch. Tasks remain on the device between application restarts.
+
+## Project structure
+
+```text
+lib/
+  database/       SQLite initialization
+  models/         Task and priority models
+  providers/      Riverpod task state
+  repositories/   Database operations
+  screens/        Task and settings UI
+  theme/          Centralized Material 3 themes
+```
